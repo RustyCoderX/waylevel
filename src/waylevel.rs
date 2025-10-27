@@ -1,12 +1,16 @@
 mod clap;
+#[cfg(unix)]
 mod output;
+#[cfg(unix)]
 mod toplevel;
 use serde::{Deserialize, Serialize};
+#[cfg(unix)]
 use smithay_client_toolkit::reexports::client::{Display, GlobalManager};
 use std::process::exit;
 
 // We recreate each struct and cherry pick the data because not all the fields
 // can be denoted as valid JSON via serde_json.
+#[cfg(unix)]
 #[derive(Serialize, Deserialize, Default, Debug, Clone, PartialEq, Eq)]
 struct ToplevelHandleDataJSON {
     title: String,
@@ -35,31 +39,42 @@ struct OutputInfoJSON {
 }
 
 fn main() {
-    let args = clap::set_flags().get_matches();
-    let toplevels = match toplevel::get_toplevel_data() {
-        Ok(toplevel) => toplevel,
-        Err(e) => {
-            println!("Err: {:#?}", e);
-            exit(1);
+    #[cfg(unix)]
+    {
+        let args = clap::set_flags().get_matches();
+        let toplevels = match toplevel::get_toplevel_data() {
+            Ok(toplevel) => toplevel,
+            Err(e) => {
+                println!("Err: {:#?}", e);
+                exit(1);
+            }
+        };
+        if args.is_present("json") {
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&populate_json_struct(toplevels)).unwrap()
+            );
+        } else if args.is_present("globals") {
+            print_compositor_globals();
+        } else if args.is_present("outputs") {
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&print_output_info()).unwrap()
+            );
+        } else {
+            print_human_readable(toplevels);
         }
-    };
-    if args.is_present("json") {
-        println!(
-            "{}",
-            serde_json::to_string_pretty(&populate_json_struct(toplevels)).unwrap()
-        );
-    } else if args.is_present("globals") {
-        print_compositor_globals();
-    } else if args.is_present("outputs") {
-        println!(
-            "{}",
-            serde_json::to_string_pretty(&print_output_info()).unwrap()
-        );
-    } else {
-        print_human_readable(toplevels);
+    }
+
+    #[cfg(not(unix))]
+    {
+        eprintln!("waylevel is only supported on Unix-like systems (Linux, macOS, etc.)");
+        std::process::exit(1);
     }
 }
 
+
+#[cfg(unix)]
 fn print_human_readable(toplevels: Vec<toplevel::ToplevelHandleData>) {
     for (count, toplevel) in toplevels.into_iter().enumerate() {
         let mut state = String::new();
@@ -86,6 +101,7 @@ fn print_human_readable(toplevels: Vec<toplevel::ToplevelHandleData>) {
     }
 }
 
+#[cfg(unix)]
 fn populate_json_struct(
     toplevels: Vec<toplevel::ToplevelHandleData>,
 ) -> Vec<ToplevelHandleDataJSON> {
@@ -100,6 +116,7 @@ fn populate_json_struct(
     json_toplevel
 }
 
+#[cfg(unix)]
 fn print_compositor_globals() {
     let display = Display::connect_to_env().unwrap();
     let mut event_queue = display.create_event_queue();
@@ -116,6 +133,7 @@ fn print_compositor_globals() {
     }
 }
 
+#[cfg(unix)]
 fn print_output_info() -> Vec<OutputInfoJSON> {
     let display = Display::connect_to_env().unwrap();
     let outputs = output::get_valid_outputs(display);

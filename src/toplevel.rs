@@ -165,5 +165,13 @@ pub fn get_toplevel_data() -> Result<Vec<ToplevelHandleData>, Box<dyn Error>> {
         event_queue.sync_roundtrip(&mut (), |_, _, _| unreachable!())?;
         foreign_toplevel_manager.as_ref().unwrap().stop();
     }
+
+    // Destroy all proxies to prevent Wayland warnings
+    for data in toplevel_handle_data.borrow().iter() {
+        data.handle.destroy();
+    }
+    foreign_toplevel_manager.as_ref().unwrap().destroy();
+    globals.registry().destroy();
+
     return Ok(toplevel_handle_data.borrow_mut().to_vec());
 }
